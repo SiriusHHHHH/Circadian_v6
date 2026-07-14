@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Circadian</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Courier+Prime:wght@400;700&family=Noto+Serif+SC:wght@300;400;600&family=Zhi+Mang+Xing&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bone:#efe9dd; --mute:#a29c8f; --faint:#6b665c;
+    --serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+    --ui:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --hand:'Caveat',cursive; --mono:'Courier Prime',ui-monospace,monospace;
+    --cn:'Noto Serif SC',serif; --cnhand:'Zhi Mang Xing',cursive;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{background:#000}
+  body{background:#000;color:var(--bone);font-family:var(--ui);
+    -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;overflow-x:hidden}
+  body.zh .pname,body.zh .flavor,body.zh .pvname,body.zh .rows li,body.zh .eyebrow,
+  body.zh .pvtime,body.zh #ending .eline,body.zh .words{font-family:var(--cn);font-style:normal}
+
+  #stage{position:fixed;inset:0;z-index:1}
+  canvas.dive{display:block;width:100%;height:100%;filter:brightness(.9) contrast(1.16)}
+  #grade{position:fixed;inset:0;pointer-events:none;z-index:5;
+    background:radial-gradient(104% 82% at 52% 44%, transparent 20%, rgba(0,0,0,.9) 100%);mix-blend-mode:multiply}
+  #grain{position:fixed;inset:-40px;pointer-events:none;z-index:6;opacity:.08;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size:150px 150px;animation:g .5s steps(3) infinite}
+  @keyframes g{0%{transform:translate(0,0)}33%{transform:translate(-10px,6px)}66%{transform:translate(8px,-9px)}100%{transform:translate(0,0)}}
+
+  .mark{position:fixed;top:16px;left:18px;z-index:14;font-size:12px;letter-spacing:.4em;text-transform:uppercase;opacity:.75;pointer-events:none}
+  #lang{position:fixed;top:40px;left:18px;z-index:15;cursor:pointer;font-family:var(--ui);font-size:9px;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--faint);background:transparent;
+    border:1px solid rgba(239,233,221,.18);border-radius:999px;padding:4px 9px;transition:color .3s,border-color .3s}
+  #lang:hover{color:var(--bone);border-color:rgba(239,233,221,.42)}
+
+  .plate{position:fixed;left:20px;bottom:24px;z-index:10;max-width:min(80vw,340px);
+    text-shadow:0 2px 22px rgba(0,0,0,.95);opacity:0;transition:opacity .55s}
+  .eyebrow{font-family:var(--ui);font-size:10px;letter-spacing:.32em;text-transform:uppercase;color:var(--mute)}
+  .pname{font-family:var(--serif);font-size:clamp(26px,7.6vw,40px);line-height:1.02;margin:8px 0 8px}
+  .flavor{font-family:var(--serif);font-style:italic;font-size:clamp(14px,4.2vw,17px);color:#d3ccbe;margin-bottom:12px}
+  .rows{list-style:none;display:grid;gap:2px;max-width:260px}
+  .rows li{display:flex;justify-content:space-between;gap:14px;font-family:var(--ui);font-size:11.5px;color:#cfc8ba}
+  .rows li span:last-child{color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .meta{margin-top:11px;display:flex;align-items:baseline;gap:14px}
+  .abv b{font-family:var(--serif);font-size:27px}
+  .abv small,.vol{font-family:var(--ui);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+  .words{margin-top:10px;font-family:var(--serif);font-style:italic;font-size:12.5px;line-height:1.55;color:#9d968a;max-width:40ch}
+
+  #clock{position:relative;z-index:20;height:100svh;background:#000;overflow:hidden}
+  #dialWrap{position:absolute;top:50%;left:50%;width:min(88vw,430px);height:min(88vw,430px);
+    transform:translate(-50%,-50%) scale(1);transform-origin:center center;transition:transform .62s cubic-bezier(.34,1.56,.42,1)}
+  #clock.hold #dialWrap{transform:translate(var(--dx),-50%) scale(1.6)}
+  #clockCanvas{width:100%;height:100%;display:block}
+  #dialSurface{position:absolute;inset:0;touch-action:none;z-index:2}
+  .htitle{position:absolute;top:7%;left:0;right:0;text-align:center;letter-spacing:.5em;font-size:12px;color:#cfc9bd;opacity:.8;pointer-events:none;z-index:3}
+  .hsub{position:absolute;bottom:6.5%;left:0;right:0;text-align:center;font-size:10px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--faint);line-height:2;pointer-events:none;z-index:3;transition:opacity .4s}
+  .hsub b{color:var(--mute);font-weight:400}
+  .cue{position:absolute;bottom:2.4%;left:0;right:0;text-align:center;font-size:18px;color:var(--faint);
+    animation:bob 2s ease-in-out infinite;pointer-events:none;z-index:3;transition:opacity .4s}
+  #clock.hold .hsub,#clock.hold .cue{opacity:0}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+  #preview{position:absolute;top:50%;left:5vw;transform:translateY(-50%) scale(.9);z-index:4;
+    display:none;flex-direction:column;align-items:center;opacity:0;pointer-events:none;
+    transition:opacity .22s ease, transform .5s cubic-bezier(.34,1.56,.42,1)}
+  #preview.on{display:flex}
+  #preview.show{opacity:1;transform:translateY(-50%) scale(1)}
+  #pvCanvas{width:36vw;max-width:215px;height:42vw;max-height:250px}
+  .pvtime{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mute)}
+  .pvname{font-family:var(--serif);font-size:clamp(17px,4.6vw,23px);color:var(--bone);margin-top:3px;
+    text-shadow:0 2px 16px #000;text-align:center;max-width:40vw;line-height:1.15}
+  #pvGo{margin-top:13px;pointer-events:auto;cursor:pointer;font-family:var(--ui);font-size:9.5px;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--bone);background:rgba(0,0,0,.45);
+    border:1px solid rgba(239,233,221,.35);border-radius:999px;padding:8px 13px}
+  #pvGo:hover{background:rgba(239,233,221,.12);border-color:rgba(239,233,221,.7)}
+
+  #diveSpacer{position:relative;z-index:0}
+  #ending{position:relative;z-index:9;height:86svh;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;background:linear-gradient(to bottom,transparent,#000 42%)}
+  #ending .eline{font-family:var(--serif);font-style:italic;font-size:clamp(16px,4.6vw,21px);color:var(--mute)}
+  #ending .emark{margin-top:15px;font-size:11px;letter-spacing:.42em;text-transform:uppercase;color:var(--faint)}
+  #ending .etop{margin-top:24px;cursor:pointer;font-family:var(--ui);font-size:9.5px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--mute);background:transparent;border:1px solid rgba(239,233,221,.2);
+    border-radius:999px;padding:7px 13px}
+  #fallback{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
+    text-align:center;padding:30px;color:var(--mute);font-size:14px;line-height:1.7}
+</style>
+</head>
+<body>
+  <div id="stage"></div><div id="grade"></div><div id="grain"></div>
+  <div class="mark">◒&nbsp; Circadian</div>
+  <button id="lang">中文</button>
+
+  <section id="clock">
+    <div id="dialWrap"><canvas id="clockCanvas"></canvas><div id="dialSurface"></div></div>
+    <div class="htitle">CIRCADIAN</div>
+    <div class="hsub" id="hsub"><b>hold the dial</b><br>drag to wander the hours</div>
+    <div class="cue">&darr;</div>
+    <div id="preview">
+      <canvas id="pvCanvas"></canvas>
+      <div class="pvtime" id="pv-time"></div>
+      <div class="pvname" id="pv-name"></div>
+      <button id="pvGo">See the pour →</button>
+    </div>
+  </section>
+
+  <div class="plate" id="plate">
+    <div class="eyebrow" id="p-eye"></div>
+    <div class="pname" id="p-name"></div>
+    <div class="flavor" id="p-flav"></div>
+    <ul class="rows" id="p-rows"></ul>
+    <div class="meta"><span class="abv"><b id="p-abv">0</b><small id="p-abvl">% abv</small></span><span class="vol" id="p-vol"></span></div>
+    <div class="words" id="p-words"></div>
+  </div>
+
+  <div id="diveSpacer"></div>
+  <section id="ending">
+    <div class="eline" id="e-line">That's the last of tonight's pours.</div>
+    <div class="emark">◒&nbsp; Circadian</div>
+    <button class="etop" id="e-top">back to the dial ↑</button>
+  </section>
+  <div id="fallback">Loading the room… if this stays, the 3D library was blocked — open the file in a browser tab.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const DRINKS = [{"n": 1, "h": 3, "mi": 30, "time": "03:30", "en": "Turquoise Blue", "cn": "绿松石蓝", "type": "martini", "hcm": 17.0, "rcm": 5.5, "taste": "Soft sweetness", "words": "I have nothing to say,,,,,that is our best seller", "abv": 13.1, "vol": 75, "c": 2077872, "e": 682599, "size": "1 regular martini glass", "ingr": [["white rum", 15.0], ["fresh lime juice", 15.0], ["pineapple juice", 30.0], ["Cointreau", 5.0], ["orange-flavored curaçao", 5.0], ["blue curaçao syrup", 5.0]]}, {"n": 2, "h": 6, "mi": 0, "time": "06:00", "en": "Awakening", "cn": "醒", "type": "rocks", "hcm": 9.0, "rcm": 4.1, "taste": "Very Refreshing and lightly sweet", "words": "If you want to have both alcohol and caffeine at the same time, don't miss it. Very nice shot for a day time drinker", "abv": 6.2, "vol": 160, "c": 15261608, "e": 6050592, "size": "1 regular rocks glass", "ingr": [["Jasmine Longjing Tea", 30.0], ["Chinese Pearl Tea Flavored Gin", 30.0], ["Icy Vanilla Soda", 100.0]]}, {"n": 3, "h": 2, "mi": 22, "time": "02:22", "en": "Flame of Love Martini", "cn": "爱之火", "type": "martini", "hcm": 17.0, "rcm": 5.5, "taste": "Dry and lemon-flavored.", "words": "Gentle reminder it is mostly vodka…", "abv": 32.5, "vol": 70, "c": 15788756, "e": 5854010, "size": "1 regular martini glass", "ingr": [["vodka", 60.0], ["Tio Pepe sherry", 10.0]]}, {"n": 4, "h": 20, "mi": 45, "time": "20:45", "en": "Expresso Martini", "cn": "意式浓缩马提尼", "type": "martini", "hcm": 17.0, "rcm": 5.5, "taste": "Creamy and baked coffee flavored.", "words": "Sometimes It's too sweet, sometimes it's too bitter…just like life.", "abv": 18.6, "vol": 120, "c": 3810328, "e": 1379077, "size": "1 regular martini glass", "ingr": [["vodka", 60.0], ["espresso", 40.0], ["sugar syrup", 15.0], ["coffee liqueur", 5.0]]}, {"n": 5, "h": 17, "mi": 44, "time": "17:44", "en": "Tequila Sunrise", "cn": "龙舌兰日出", "type": "hurricane", "hcm": 20.0, "rcm": 5.0, "taste": "", "words": "Some loves tequila, some don't. I don't. No matter how mesmerizing its color is.", "abv": 9.5, "vol": 210, "c": 15759914, "e": 8008200, "size": "1 regular hurricane glass", "ingr": [["tequila", 60.0], ["fresh orange juice", 120.0], ["pomegranate syrup", 30.0]]}, {"n": 6, "h": 18, "mi": 30, "time": "18:30", "en": "Yellow Submarine", "cn": "黄色潜水艇", "type": "collins", "hcm": 15.5, "rcm": 3.2, "taste": "Chilly and Refreshing", "words": "Sounds like for kid, but still, it is vodka.", "abv": 8.3, "vol": 160, "c": 15914570, "e": 7232525, "size": "1 regular Collins Cup", "ingr": [["vodka", 20.0], ["lemon syrup", 20.0], ["orange curaçao", 20.0], ["vanilla soda", 100.0]]}, {"n": 7, "h": 7, "mi": 40, "time": "07:40", "en": "Passion Fruit Sour(w/ Gin)", "cn": "百香果金酸", "type": "dessert", "hcm": 10.5, "rcm": 4.6, "taste": "Refreshing sweet and sour", "words": "It's sweet, refreshing, and easy to drink, but one guest got drunk after just one glass.", "abv": 16.9, "vol": 95, "c": 15910205, "e": 7033610, "size": "1 regular dessert cup", "ingr": [["gin", 45.0], ["lime juice", 15.0], ["passion fruit syrup", 10.0], ["1 passion fruit pulp", 25]]}, {"n": 8, "h": 9, "mi": 0, "time": "09:00", "en": "Margarita", "cn": "玛格丽特", "type": "marg", "hcm": 17.5, "rcm": 6.0, "taste": "Savory and sweet", "words": "People blindly chase after something just because of its fame, even if they don’t actually like it.", "abv": 24.2, "vol": 110, "c": 15331524, "e": 6054449, "size": "1 regular margarita  glass", "ingr": [["tequila", 50.0], ["lime juice", 30.0], ["Cointreau", 30.0], ["a pinch of salt", 0]]}, {"n": 9, "h": 12, "mi": 30, "time": "12:30", "en": "Lait de Poule", "cn": "蛋奶酒", "type": "toddy", "hcm": 14.0, "rcm": 3.7, "taste": "Warm and spicy taste", "words": "A bit fishy. Even though it's cooked.", "abv": 2.1, "vol": 170, "c": 16182482, "e": 6182195, "size": "1 regular toddy glass", "ingr": [["milk", 100.0], ["rum", 10.0], ["25g sugar", 15.0], ["1 egg yolk", 30], ["1 tablespoon liquid cream", 15], ["A small pinch of cinnamon", 0]]}, {"n": 10, "h": 10, "mi": 25, "time": "10:25", "en": "Pink Lady", "cn": "粉红佳人", "type": "coupe", "hcm": 15.0, "rcm": 4.8, "taste": "Soft and sweet, creamy", "words": "I think it tastes a bit fishy. If you’re making it for moms to drink, it’s best to tell them it’s raw. Otherwise, don't blame them for not saving you face.", "abv": 13.6, "vol": 105, "c": 15901614, "e": 7221052, "size": "1 regular coupe glass", "ingr": [["gin", 40.0], ["lemon juice", 20.0], ["pomegranate syrup", 10.0], ["1 teaspoon low-fat fresh cream", 5], ["1 egg white", 30]]}, {"n": 11, "h": 7, "mi": 25, "time": "07:25", "en": "Passion Fruit Sour(w/ Whisky)", "cn": "百香果威士忌酸", "type": "rocks", "hcm": 9.0, "rcm": 4.1, "taste": "Refreshing sweet and sour", "words": "It's sweet, refreshing, and easy to drink, but one guest got drunk after just one glass.", "abv": 15.8, "vol": 95, "c": 15775306, "e": 7031309, "size": "1 regular rocks glass", "ingr": [["Whisky", 45.0], ["lime juice", 15.0], ["passion fruit syrup", 10.0], ["1 passion fruit pulp", 25]]}, {"n": 12, "h": 16, "mi": 30, "time": "16:30", "en": "Mojito", "cn": "莫吉托", "type": "collins", "hcm": 15.5, "rcm": 3.2, "taste": "Rich bubbles and mint flavor", "words": "These mints come from the front yard of my grandparents' house. My dad picks them for me every time. Thanks for your hard work, Dad.", "abv": 8.6, "vol": 158, "c": 13625524, "e": 4875825, "size": "1 regular Collins Glass", "ingr": [["Cuban rum", 40.0], ["vanilla soda", 80.0], ["mint syrup", 20.0], ["lime juice", 15.0], ["10 mint leaves", 2], ["2 drops Angostura bitters", 0.6]]}, {"n": 13, "h": 13, "mi": 30, "time": "13:30", "en": "Irish Coffee", "cn": "爱尔兰咖啡", "type": "toddy", "hcm": 14.0, "rcm": 3.7, "taste": "Sweet and creamy", "words": "When I was in college, my friends and I often went to a famous Irish bar called 'Dead Rabbit' next to Wall Street. Their best thing was the Irish coffee. I've been trying to recreate the taste from my memories.", "abv": 6.2, "vol": 223, "c": 4006679, "e": 1444356, "size": "1 regular toddy glass", "ingr": [["Whisky", 30.0], ["hot coffee", 120.0], ["High-fat fresh cream", 50.0], ["Creamy whiskey-flavored liqueur", 20.0], ["5g coca sugar", 3.0]]}, {"n": 14, "h": 17, "mi": 45, "time": "17:45", "en": "Farewell", "cn": "欢送", "type": "martini_s", "hcm": 11.0, "rcm": 4.6, "taste": "Herbal taste with a slight sourness", "words": "Another version of Last Word", "abv": 25.4, "vol": 100, "c": 11127118, "e": 4478490, "size": "a very short martini cup", "ingr": [["gin", 30.0], ["green Chartreuse", 30.0], ["fresh lime juice", 30.0], ["freshly squeezed cherry juice", 10.0]]}, {"n": 15, "h": 8, "mi": 1, "time": "08:01", "en": "Orange-flavored Americano", "cn": "橙香美式", "type": "rocks", "hcm": 9.0, "rcm": 4.1, "taste": "coffee", "words": "If you are driving home…", "abv": 0.6, "vol": 135, "c": 8376536, "e": 2317410, "size": "1 regular rocks glass", "ingr": [["orange juice", 50.0], ["coconut juice", 20.0], ["iced Americano", 30.0], ["lime flavored light cream", 30.0], ["blue curaçao syrup", 5.0]]}, {"n": 16, "h": 8, "mi": 2, "time": "08:02", "en": "Blue Algae Sea Salt Cheese Mocha", "cn": "藻蓝海盐芝士摩卡", "type": "rocks", "hcm": 9.0, "rcm": 4.1, "taste": "coffee", "words": "If you are driving home…", "abv": 0.0, "vol": 130, "c": 5601494, "e": 1782392, "size": "1 regular rocks glass", "ingr": [["coconut milk", 30.0], ["chocolate mocha", 50.0], ["Blue Algae Sea Salt light cream", 50.0]]}, {"n": 17, "h": 11, "mi": 45, "time": "11:45", "en": "Pina Colada", "cn": "椰林飘香", "type": "coupe", "hcm": 15.0, "rcm": 4.8, "taste": "Thick and smooth texture", "words": "My friend 栗子 brought a bottle of coconut-flavored rum, and she gave me a lot of inspiring insights. Since then, my mind has been opened.", "abv": 7.2, "vol": 130, "c": 15985366, "e": 6182208, "size": "1 regular coupe glass", "ingr": [["coconut flavored white rum", 50.0], ["coconut cream", 20.0], ["fresh pineapple juice", 60.0]]}, {"n": 18, "h": 18, "mi": 55, "time": "18:55", "en": "Mai Tai", "cn": "迈泰", "type": "rocks", "hcm": 9.0, "rcm": 4.1, "taste": "Fresh and sweet", "words": "Clear golden color, filled with ice", "abv": 22.2, "vol": 112, "c": 14259758, "e": 6043661, "size": "1 regular rocks glass", "ingr": [["white rum", 30.0], ["gold rum", 30.0], ["orange curaçao liqueur", 15.0], ["fresh lemon juice / yuzu juice", 22.5], ["cane syrup", 7.5], ["almond syrup", 7.5]]}, {"n": 19, "h": 0, "mi": 0, "time": "00:00", "en": "Last Word (w/ Cucumber)", "cn": "临别一语", "type": "martini_s", "hcm": 11.0, "rcm": 4.6, "taste": "Herbal taste with a slight sourness", "words": "Green Chartreuse is very expensive recently. If it weren't for my thirst for knowledge and curiosity, you wouldn't be seeing it in this family bar at all.", "abv": 25.4, "vol": 100, "c": 11127118, "e": 4478490, "size": "a very short martini cup", "ingr": [["gin", 30.0], ["green Chartreuse", 30.0], ["fresh lime juice", 30.0], ["cucumber syrup", 10.0]]}, {"n": 20, "h": 23, "mi": 20, "time": "23:20", "en": "Screwdriver", "cn": "螺丝起子", "type": "highball", "hcm": 15.0, "rcm": 3.4, "taste": "Fresh and sweet", "words": "Perfect for tricking that friend who doesn't know much about cocktails", "abv": 7.4, "vol": 180.0, "c": 15765802, "e": 7224583, "size": "1 regular Highball Glass", "ingr": [["vodka", 40.0], ["fresh orange juice or ginger beer", 140]]}, {"n": 21, "h": 11, "mi": 0, "time": "11:00", "en": "Blue Hawaii", "cn": "蓝色夏威夷", "type": "hurricane", "hcm": 20.0, "rcm": 5.0, "taste": "Sweet and sour taste", "words": "I've always been unsure how to get this sky-like blue.", "abv": 11.5, "vol": 195, "c": 4172256, "e": 1067627, "size": "1 regular hurricane glass", "ingr": [["white rum", 20.0], ["vodka", 20.0], ["curaçao", 20.0], ["blue curaçao syrup", 15.0], ["clarified pineapple juice", 80.0], ["coconut juice", 40.0]]}, {"n": 22, "h": 16, "mi": 0, "time": "16:00", "en": "Cuba Libre", "cn": "自由古巴", "type": "rocks", "hcm": 9.0, "rcm": 4.1, "taste": "Rich bubbles and sweetness", "words": "Perfect for tricking that friend who doesn't know much about cocktails", "abv": 21.4, "vol": 70, "c": 7027230, "e": 2757640, "size": "1 regular rocks glass", "ingr": [["Cuban white rum", 45.0], ["Coca-Cola", 15.0], ["1 lime", 10]]}, {"n": 23, "h": 15, "mi": 20, "time": "15:20", "en": "Daiquiri Natural", "cn": "原味代基里", "type": "coupe", "hcm": 15.0, "rcm": 4.8, "taste": "Slightly sour", "words": "A lot  of rum. Great choice if you want to get drunk.", "abv": 22.6, "vol": 95, "c": 15659744, "e": 5988422, "size": "1 regular coupe glass", "ingr": [["white rum", 60.0], ["lime juice", 20.0], ["simple syrup", 15.0]]}, {"n": 24, "h": 15, "mi": 22, "time": "15:22", "en": "El Presidente No.1", "cn": "头号总统", "type": "martini", "hcm": 17.0, "rcm": 5.5, "taste": "Refreshing and invigorating", "words": "A lot  of rum. Great choice if you want to get drunk.", "abv": 26.0, "vol": 82, "c": 15233871, "e": 7152404, "size": "1 regular martini glass", "ingr": [["gold rum", 60.0], ["lime juice", 15.0], ["grenadine", 7.5]]}, {"n": 25, "h": 16, "mi": 10, "time": "16:10", "en": "Astoria", "cn": "阿斯托里亚", "type": "martini", "hcm": 17.0, "rcm": 5.5, "taste": "Slightly sweet and bitter", "words": "She reminds me of the neighborhood in front of NYU, where we often got off if we took the green line. It tastes kind of similar too.", "abv": 21.1, "vol": 121, "c": 15786160, "e": 6181416, "size": "1 regular martini glass", "ingr": [["gin", 30.0], ["dry vermouth", 90.0], ["2 drops orange bitters", 0.6], ["1 slice of orange peel", 0]]}, {"n": 26, "h": 9, "mi": 55, "time": "09:55", "en": "Cucumber & Gin & Tonic", "cn": "青木金汤力", "type": "highball", "hcm": 15.0, "rcm": 3.4, "taste": "Lemon flavor and bitterness", "words": "Simple but fasinating flavor. One of my guest said it is boring. So I add something new.", "abv": 6.4, "vol": 260, "c": 14675686, "e": 4938578, "size": "1 regular Highball Glass", "ingr": [["gin", 50.0], ["tonic water", 200.0], ["cucumber syrup", 10.0], ["1 slice of lime peel or 1 long slice of cucumber peel", 0]]}];
+(function(){
+  if(typeof THREE==='undefined'){document.getElementById('fallback').style.display='flex';return;}
+  const gid=id=>document.getElementById(id);
+  const T={en:{hold:'<b>hold the dial</b><br>drag to wander the hours',go:'See the pour →',
+      end:"That's the last of tonight's pours.",top:'back to the dial ↑',abv:'% abv',lang:'中文'},
+    zh:{hold:'<b>长按转盘</b><br>拖动浏览各个时刻',go:'看看这一杯 →',
+      end:'今夜的酒，到此为止。',top:'回到转盘 ↑',abv:'% 酒精度',lang:'EN'}};
+  let LANG='en';
+  const nameOf=d=>LANG==='zh'?d.cn:d.en;
+
+  DRINKS.sort((a,b)=>(a.h*60+a.mi)-(b.h*60+b.mi));
+  const N=DRINKS.length, S=11.5;
+  DRINKS.forEach((d,i)=>{ d.side=(i%2===0)?-1:1; d.x=d.side*1.75; d.y=-i*S; d.z=2.5; });
+
+  // ---------- scene ----------
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x000000);
+  scene.fog=new THREE.Fog(0x000000,7.5,24);
+  const camera=new THREE.PerspectiveCamera(44,innerWidth/innerHeight,0.1,300);
+  const RS=1.23;
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  renderer.setSize(innerWidth*RS,innerHeight*RS,false);
+  renderer.domElement.className='dive';
+  renderer.domElement.style.width='100%'; renderer.domElement.style.height='100%';
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  gid('stage').appendChild(renderer.domElement);
+
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(300,700),
+    new THREE.MeshStandardMaterial({color:0xd2d0c9,roughness:1,metalness:0})));
+  scene.add(new THREE.AmbientLight(0x0c1119,0.1));
+
+  const FLASH_MAX=3.1, SOFT_MAX=1.15, GLOW_MAX=0.34;
+  const flash=new THREE.SpotLight(0xffe1b4,0,40,0.4,0.72,1.5);
+  flash.castShadow=true; flash.shadow.mapSize.set(2048,2048);
+  flash.shadow.camera.near=1; flash.shadow.camera.far=44; flash.shadow.bias=-0.0006;
+  scene.add(flash);
+  const ft=new THREE.Object3D(); scene.add(ft); flash.target=ft;
+  const soft=new THREE.SpotLight(0xffe1b4,0,44,0.52,0.95,1.5);
+  soft.castShadow=true; soft.shadow.mapSize.set(1024,1024);
+  soft.shadow.camera.near=1; soft.shadow.camera.far=48; soft.shadow.bias=-0.001; soft.shadow.radius=9;
+  scene.add(soft); soft.target=ft;
+  const glow=new THREE.PointLight(0xffffff,0,6,2.4); scene.add(glow);
+
+  const M=(c,r=0.8)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:0,flatShading:true});
+  const LIQ=(c,e,ei=0.5)=>new THREE.MeshStandardMaterial({color:c,roughness:0.5,flatShading:true,emissive:e,emissiveIntensity:ei});
+  const GLASS=()=>new THREE.MeshStandardMaterial({color:0xdcecef,roughness:0.24,metalness:0,transparent:true,opacity:0.34,flatShading:true,side:THREE.DoubleSide});
+  const cyl=(rt,rb,h,s=12,o=false)=>new THREE.CylinderGeometry(rt,rb,h,s,1,o);
+  const U=0.55/9.0;  // world units per cm (a 9cm rocks glass ≈ 0.55u tall)
+
+  function buildDrink(d){
+    const g=new THREE.Group(), gl=GLASS();
+    const H=d.hcm*U*2.2, R=d.rcm*U*2.2;         // true-scale height & rim radius
+    const add=(geo,mat,y,cast=true)=>{const m=new THREE.Mesh(geo,mat);m.position.y=y;if(cast)m.castShadow=true;g.add(m);return m;};
+    const liq=LIQ(d.c,d.e,0.5);
+    const t=d.type;
+    if(t==='martini'||t==='martini_s'||t==='marg'){
+      const bowlH=H*0.34, stemH=H*0.42, footR=R*0.62;
+      add(cyl(footR,footR,H*0.03,16),gl,-H/2);
+      add(cyl(R*0.05,R*0.05,stemH,8),gl,-H/2+stemH/2);
+      if(t==='marg'){
+        add(cyl(R,R*0.34,bowlH*0.55,14,true),gl,-H/2+stemH+bowlH*0.5);
+        add(cyl(R*0.94,R*0.3,bowlH*0.42,14),liq,-H/2+stemH+bowlH*0.46);
+        add(new THREE.TorusGeometry(R,R*0.05,6,18),M(0xf2efe6,0.7),-H/2+stemH+bowlH*0.78);
+      }else{
+        add(cyl(R,R*0.05,bowlH,14,true),gl,-H/2+stemH+bowlH/2);
+        add(cyl(R*0.9,R*0.05,bowlH*0.8,14),liq,-H/2+stemH+bowlH*0.44);
+      }
+    } else if(t==='coupe'){
+      const bowlH=H*0.3, stemH=H*0.46;
+      add(cyl(R*0.6,R*0.6,H*0.03,16),gl,-H/2);
+      add(cyl(R*0.05,R*0.05,stemH,8),gl,-H/2+stemH/2);
+      add(new THREE.SphereGeometry(R,14,7,0,6.3,Math.PI/2,Math.PI/2),gl,-H/2+stemH+bowlH*0.7);
+      add(cyl(R*0.86,R*0.4,bowlH*0.6,14),liq,-H/2+stemH+bowlH*0.5);
+    } else if(t==='rocks'){
+      add(cyl(R,R*0.9,H,12,true),gl,0);
+      add(cyl(R*0.9,R*0.84,H*0.62,12),liq,-H*0.16);
+      const ice=add(new THREE.BoxGeometry(R*0.7,R*0.7,R*0.7),
+        new THREE.MeshStandardMaterial({color:0xcfe6ee,transparent:true,opacity:0.38,roughness:0.1,flatShading:true}),H*0.1);
+      ice.rotation.set(0.4,0.5,0.2);
+    } else if(t==='highball'||t==='collins'){
+      add(cyl(R,R*0.92,H,12,true),gl,0);
+      add(cyl(R*0.9,R*0.84,H*0.78,12),liq,-H*0.08);
+    } else if(t==='hurricane'){
+      const stemH=H*0.2;
+      add(cyl(R*0.7,R*0.7,H*0.03,16),gl,-H/2);
+      add(cyl(R*0.28,R*0.28,stemH,10),gl,-H/2+stemH/2);
+      add(cyl(R,R*0.55,H*0.7,14,true),gl,-H/2+stemH+H*0.35);
+      add(cyl(R*0.9,R*0.5,H*0.56,14),liq,-H/2+stemH+H*0.3);
+    } else if(t==='toddy'){
+      const stemH=H*0.16;
+      add(cyl(R*0.9,R*0.9,H*0.04,16),gl,-H/2);
+      add(cyl(R*0.4,R*0.4,stemH,10),gl,-H/2+stemH/2);
+      add(cyl(R,R*0.9,H*0.72,12,true),gl,-H/2+stemH+H*0.38);
+      add(cyl(R*0.9,R*0.82,H*0.44,12),liq,-H/2+stemH+H*0.26);
+      add(cyl(R*0.92,R*0.9,H*0.2,12),LIQ(0xf6ecd8,0x2e2618,0.16),-H/2+stemH+H*0.6);
+      const hd=add(new THREE.TorusGeometry(R*0.5,R*0.1,6,14),gl,-H*0.05);
+      hd.position.x=-R*1.15; hd.rotation.y=Math.PI/2;
+    } else { // dessert
+      const stemH=H*0.26;
+      add(cyl(R*0.7,R*0.7,H*0.04,16),gl,-H/2);
+      add(cyl(R*0.22,R*0.22,stemH,10),gl,-H/2+stemH/2);
+      add(cyl(R,R*0.72,H*0.5,14,true),gl,-H/2+stemH+H*0.26);
+      add(cyl(R*0.9,R*0.66,H*0.4,14),liq,-H/2+stemH+H*0.22);
+    }
+    // garnish hint: citrus wheel for sours/citrus drinks
+    if(/lime|lemon|orange|yuzu/i.test(JSON.stringify(d.ingr))){
+      const w=add(cyl(R*0.3,R*0.3,R*0.06,12),M(0xa8cc55,0.5),H*0.42);
+      w.position.set(R*0.85,H*0.42,0); w.rotation.z=1.15;
+    }
+    return g;
+  }
+  function diveModel(d){
+    const g=new THREE.Group();
+    const bw=2.2, bh=1.05;
+    const box=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,1.2),M(0xa97a38,0.92));
+    box.position.y=-1.48; box.castShadow=true; box.receiveShadow=true; g.add(box);
+    const seam=new THREE.Mesh(new THREE.BoxGeometry(bw+0.02,0.07,1.22),M(0x7d5522,0.92));
+    seam.position.y=-1.12; seam.castShadow=true; g.add(seam);
+    const dm=buildDrink(d); dm.position.y=-0.95+(d.hcm*U*2.2)/2; g.add(dm);
+    g.position.set(d.x,d.y,d.z); return g;
+  }
+  DRINKS.forEach(d=>{ d.node=diveModel(d); scene.add(d.node); });
+
+  // ---------- wall labels ----------
+  function sp(x,t,px,py,s){let c=px;for(const ch of t){x.fillText(ch,c,py);c+=x.measureText(ch).width+s;}}
+  function labelTex(d){
+    const c=document.createElement('canvas'); c.width=680; c.height=300; const x=c.getContext('2d');
+    x.clearRect(0,0,680,300); x.textBaseline='alphabetic';
+    x.fillStyle='#2a241b'; x.font="700 36px 'Courier Prime',monospace";
+    sp(x,d.time,24,62,3);
+    x.fillStyle='#211c14';
+    const nm=nameOf(d);
+    if(LANG==='zh'){ x.font="96px 'Zhi Mang Xing',cursive"; }
+    else { const fs = nm.length>18?74:(nm.length>12?92:110); x.font="600 "+fs+"px 'Caveat',cursive"; }
+    x.fillText(nm,22,186);
+    const t=new THREE.CanvasTexture(c); t.anisotropy=8; return t;
+  }
+  function buildLabels(){
+    DRINKS.forEach(d=>{
+      const tex=labelTex(d);
+      if(d.label){ d.label.material.map.dispose(); d.label.material.map=tex; d.label.material.needsUpdate=true; return; }
+      const m=new THREE.MeshStandardMaterial({map:tex,transparent:true,roughness:1,metalness:0});
+      const pl=new THREE.Mesh(new THREE.PlaneGeometry(3.6,1.6),m);
+      pl.position.set(d.x+(-d.side)*1.8,d.y+0.9,0.05); scene.add(pl); d.label=pl;
+    });
+  }
+  buildLabels();
+  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(buildLabels);}
+  setTimeout(buildLabels,2000);
+
+  // ---------- plate ----------
+  gid('diveSpacer').style.height=((N+1)*118)+'vh';
+  const START=1.4, END=-((N-1)*S)-1.4;
+  let sY=window.scrollY||0; addEventListener('scroll',()=>{sY=window.scrollY;},{passive:true});
+  const plate=gid('plate'); let shown=-1;
+  function fillPlate(){
+    const d=DRINKS[shown<0?0:shown]; if(!d)return;
+    gid('p-eye').textContent=d.time;
+    gid('p-name').textContent=nameOf(d);
+    gid('p-flav').textContent=d.taste||'';
+    gid('p-rows').innerHTML=d.ingr.map(([n,ml])=>`<li><span>${n}</span><span>${ml?ml+' ml':''}</span></li>`).join('');
+    gid('p-abv').textContent=d.abv; gid('p-abvl').textContent=T[LANG].abv;
+    gid('p-vol').textContent='≈'+d.vol+' ml · '+d.size.replace('1 regular ','');
+    gid('p-words').textContent=d.words||'';
+  }
+  function setPlate(i){ if(i===shown)return; shown=i; fillPlate(); }
+
+  const look=new THREE.Vector3(),tPos=new THREE.Vector3(),lensW=new THREE.Vector3();
+  const UP=new THREE.Vector3(0,1,0),dirV=new THREE.Vector3(),curPos=new THREE.Vector3();
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const diveStart=()=>innerHeight*0.85;
+  const diveEnd=()=>gid('ending').offsetTop-innerHeight*0.5;
+  const t0=performance.now();
+
+  const torch=new THREE.Group();
+  torch.add(new THREE.Mesh(cyl(0.12,0.14,0.85,8),M(0x1a1c22,0.55))).position.y=-0.1;
+  torch.add(new THREE.Mesh(cyl(0.25,0.14,0.32,10),M(0x25272f,0.5))).position.y=0.48;
+  const lensMat=new THREE.MeshStandardMaterial({color:0xfff2d2,emissive:0xffdf9c,emissiveIntensity:1.3});
+  const lens=new THREE.Mesh(new THREE.CircleGeometry(0.23,12),lensMat);
+  lens.position.y=0.66; lens.rotation.x=-Math.PI/2; torch.add(lens);
+  const beamMat=new THREE.MeshBasicMaterial({color:0xffe6bf,transparent:true,opacity:0.05,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
+  const beam=new THREE.Mesh(cyl(1.4,0.08,1,20,true),beamMat);
+  beam.position.y=0.5; torch.add(beam); scene.add(torch);
+
+  let onAmt=0;   // flashlight on/off fade
+  function diveFrame(now){
+    const t=(now-t0)/1000;
+    const span=Math.max(1,diveEnd()-diveStart());
+    const prog=Math.min(1,Math.max(0,(sY-diveStart())/span));
+    const camY=START+prog*(END-START);
+    const inDive=sY>diveStart()+40 && sY<diveEnd()+innerHeight*0.4;
+
+    let idx=Math.round(-camY/S); idx=Math.min(N-1,Math.max(0,idx));
+    const cur=DRINKS[idx]; curPos.set(cur.x,cur.y,cur.z); setPlate(idx);
+
+    // light ONLY when a drink is essentially centred (fully on screen)
+    const off=Math.abs((-camY/S)-idx);           // 0 = perfectly centred
+    const want=(inDive && off<0.30)?1:0;
+    onAmt += (want-onAmt)*0.07;                  // slow fade in/out
+    flash.intensity=FLASH_MAX*onAmt; soft.intensity=SOFT_MAX*onAmt;
+    glow.intensity=GLOW_MAX*onAmt; lensMat.emissiveIntensity=1.3*onAmt;
+    beamMat.opacity=0.05*onAmt;
+    plate.style.opacity=inDive?onAmt:0;
+
+    camera.position.set(0,camY,9.4);
+    look.lerp(new THREE.Vector3(cur.x*0.5,camY-0.4,0),0.1); camera.lookAt(look);
+    const bob=reduce?0:Math.sin(t*1.2)*0.1, sway=reduce?0:Math.sin(t*0.5)*0.14;
+    tPos.set(cur.x*0.1-cur.side*1.9+sway,camY-1.25+bob,6.1);
+    torch.position.lerp(tPos,0.05);              // slower travel = calmer light
+    dirV.subVectors(curPos,torch.position).normalize(); torch.quaternion.setFromUnitVectors(UP,dirV);
+    const len=torch.position.distanceTo(curPos); beam.scale.y=len; beam.position.y=len/2;
+    lens.getWorldPosition(lensW); flash.position.copy(lensW); soft.position.copy(lensW);
+    ft.position.lerp(curPos,0.1);
+    glow.position.set(cur.x,cur.y+0.2,cur.z-0.3); glow.color.setHex(cur.c);
+    renderer.render(scene,camera); requestAnimationFrame(diveFrame);
+  }
+  requestAnimationFrame(diveFrame);
+  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth*RS,innerHeight*RS,false);});
+
+  // ================= DIAL =================
+  const cc=gid('clockCanvas'),cx=cc.getContext('2d');
+  let CS=0;
+  function sizeClock(){const r=cc.getBoundingClientRect();CS=Math.round(r.width*(window.devicePixelRatio||1));cc.width=CS;cc.height=CS;}
+  sizeClock(); addEventListener('resize',()=>{sizeClock();placeDial();});
+  // minute-of-day -> angle (24h dial: full circle = 24h)
+  const angOf=d=>((d.h*60+d.mi)/1440)*Math.PI*2-Math.PI/2;
+  let activeIdx=-1, litSeg=-1;
+
+  function clockFrame(now){
+    const t=now/1000,c=CS/2;
+    cx.clearRect(0,0,CS,CS); cx.fillStyle='#000'; cx.fillRect(0,0,CS,CS);
+    const rIn=CS*0.40,rMin=CS*0.428,rHr=CS*0.452;
+    // 60 radioactive segments
+    for(let m=0;m<60;m++){
+      const a=(m/60)*Math.PI*2-Math.PI/2, isHr=m%5===0;
+      const near = litSeg>=0 && Math.min(Math.abs(m-litSeg),60-Math.abs(m-litSeg))<1.2;
+      cx.save();
+      if(near){cx.shadowColor='rgba(255,255,255,.95)';cx.shadowBlur=CS*0.03;}
+      cx.strokeStyle=near?'rgba(255,255,255,1)':(isHr?'rgba(255,255,255,.5)':'rgba(255,255,255,.22)');
+      cx.lineWidth=near?Math.max(2.6,CS*0.014):(isHr?Math.max(1.5,CS*0.008):Math.max(1,CS*0.003));
+      const rO=near?CS*0.472:(isHr?rHr:rMin);
+      cx.beginPath();cx.moveTo(c+Math.cos(a)*rIn,c+Math.sin(a)*rIn);cx.lineTo(c+Math.cos(a)*rO,c+Math.sin(a)*rO);cx.stroke();
+      cx.restore();
+    }
+    // brackets
+    cx.strokeStyle='rgba(255,255,255,.5)';cx.lineWidth=Math.max(1,CS*0.004);
+    const p=CS*0.04,L=CS*0.05;
+    const cor=(x,y,sx,sy)=>{cx.beginPath();cx.moveTo(x,y+sy*L);cx.lineTo(x,y);cx.lineTo(x+sx*L,y);cx.stroke();};
+    cor(p,p,1,1);cor(CS-p,p,-1,1);cor(p,CS-p,1,-1);cor(CS-p,CS-p,-1,-1);
+    // nebula + constellation of the 26 dots ON the segments
+    const R=CS*0.40;
+    const pts=DRINKS.map(d=>({x:c+Math.cos(angOf(d))*R,y:c+Math.sin(angOf(d))*R}));
+    cx.save(); try{cx.filter='blur('+(CS*0.02)+'px)';}catch(e){}
+    cx.fillStyle='rgba(255,255,255,.42)';
+    pts.forEach(pt=>{cx.beginPath();cx.arc(pt.x,pt.y,CS*0.014,0,7);cx.fill();});
+    cx.restore();
+    cx.strokeStyle='rgba(255,255,255,.34)';cx.lineWidth=Math.max(1,CS*0.0025);
+    cx.beginPath(); pts.forEach((pt,i)=>i?cx.lineTo(pt.x,pt.y):cx.moveTo(pt.x,pt.y)); cx.closePath(); cx.stroke();
+    // centre arc
+    cx.strokeStyle='rgba(255,255,255,.35)';cx.lineWidth=Math.max(1,CS*0.003);
+    cx.beginPath();cx.arc(c,c,CS*0.05,-2.4,-0.9);cx.stroke();
+    // dots
+    pts.forEach((pt,i)=>{
+      const pulse=0.55+0.45*Math.abs(Math.sin(t*1.3+i*0.7));
+      cx.save();cx.shadowColor='rgba(255,255,255,.9)';cx.shadowBlur=CS*0.022*pulse;
+      if(i===activeIdx){cx.strokeStyle='#fff';cx.lineWidth=CS*0.006;cx.beginPath();cx.arc(pt.x,pt.y,CS*0.017,0,7);cx.stroke();}
+      else{cx.fillStyle='rgba(255,255,255,'+(0.6*pulse+0.3)+')';cx.beginPath();cx.arc(pt.x,pt.y,CS*0.0085,0,7);cx.fill();}
+      cx.restore();
+    });
+    if(activeIdx>=0){
+      cx.fillStyle='rgba(239,233,221,.92)';cx.textAlign='center';cx.textBaseline='middle';
+      cx.font="700 "+(CS*0.044)+"px 'Courier Prime',monospace";
+      cx.fillText(DRINKS[activeIdx].time,c,c+CS*0.004);
+    }
+    requestAnimationFrame(clockFrame);
+  }
+  requestAnimationFrame(clockFrame);
+
+  const clockSec=gid('clock'),dialWrap=gid('dialWrap');
+  function placeDial(){ dialWrap.style.setProperty('--dx', innerWidth>760?'64%':'58%'); }  // keep ≥60% of dial visible
+  placeDial();
+
+  // ---------- click sound ----------
+  let AC=null;
+  function click(){
+    try{
+      if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)();
+      if(AC.state==='suspended') AC.resume();
+      const t=AC.currentTime;
+      const o=AC.createOscillator(),g=AC.createGain(),f=AC.createBiquadFilter();
+      f.type='bandpass'; f.frequency.value=2400; f.Q.value=6;
+      o.type='square'; o.frequency.setValueAtTime(1800,t);
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.16,t+0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.045);
+      o.connect(f); f.connect(g); g.connect(AC.destination);
+      o.start(t); o.stop(t+0.06);
+    }catch(e){}
+  }
+
+  // ---------- preview ----------
+  const pv=gid('preview'),pvc=gid('pvCanvas');
+  let pvR,pvS,pvC,pvModels=[],curPv=-1,pvRAF;
+  function initPV(){
+    pvR=new THREE.WebGLRenderer({canvas:pvc,antialias:true,alpha:true});
+    pvR.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+    const w=pvc.clientWidth||200,h=pvc.clientHeight||250; pvR.setSize(w,h,false);
+    pvS=new THREE.Scene(); pvC=new THREE.PerspectiveCamera(40,w/h,0.1,50); pvC.position.set(0,0,5.4);
+    pvS.add(new THREE.AmbientLight(0x8899aa,0.8));
+    const pl=new THREE.PointLight(0xffffff,0.75,20); pl.position.set(2,3,4); pvS.add(pl);
+    DRINKS.forEach(d=>{const m=buildDrink(d);m.visible=false;pvS.add(m);pvModels.push(m);});
+  }
+  function pvLoop(){pvRAF=requestAnimationFrame(pvLoop);pvModels.forEach(m=>{if(m.visible)m.rotation.y+=0.012;});pvR.render(pvS,pvC);}
+  function activate(i){
+    if(i===curPv)return;
+    if(!pvR)initPV();
+    click();
+    activeIdx=i; const d=DRINKS[i];
+    litSeg=Math.round(((d.h*60+d.mi)/1440)*60)%60;
+    clockSec.classList.add('hold'); pv.classList.add('on');
+    pv.classList.remove('show'); clearTimeout(pv._s);
+    pv._s=setTimeout(()=>{
+      pvModels.forEach((m,k)=>m.visible=(k===i));
+      gid('pv-name').textContent=nameOf(d);
+      gid('pv-time').textContent=d.time;
+      pv.classList.add('show');
+    },curPv<0?0:100);
+    curPv=i; if(!pvRAF)pvLoop();
+  }
+  function deactivate(){
+    activeIdx=-1;curPv=-1;litSeg=-1;
+    clockSec.classList.remove('hold'); pv.classList.remove('show');
+    setTimeout(()=>{if(curPv<0){pv.classList.remove('on');if(pvRAF){cancelAnimationFrame(pvRAF);pvRAF=null;}}},240);
+  }
+
+  // ---------- scrub (release = collapse) ----------
+  const surf=gid('dialSurface');
+  let hold=null,scrub=false,last=-1;
+  function idxAt(px,py){
+    const r=surf.getBoundingClientRect();
+    const a=Math.atan2(py-(r.top+r.height/2),px-(r.left+r.width/2));
+    let best=0,bd=1e9;
+    DRINKS.forEach((d,i)=>{const na=angOf(d);const df=Math.abs(Math.atan2(Math.sin(a-na),Math.cos(a-na)));if(df<bd){bd=df;best=i;}});
+    return best;
+  }
+  surf.addEventListener('pointerdown',e=>{
+    e.preventDefault(); try{surf.setPointerCapture(e.pointerId);}catch(_){}
+    hold=setTimeout(()=>{scrub=true;last=idxAt(e.clientX,e.clientY);activate(last);},340);
+  });
+  surf.addEventListener('pointermove',e=>{
+    if(!scrub)return;
+    e.preventDefault();                       // block accidental page scroll
+    const i=idxAt(e.clientX,e.clientY);
+    if(i!==last){last=i;activate(i);}
+  },{passive:false});
+  function up(){ clearTimeout(hold); if(scrub){scrub=false;deactivate();} }
+  surf.addEventListener('pointerup',up);
+  surf.addEventListener('pointercancel',up);
+  surf.addEventListener('contextmenu',e=>e.preventDefault());
+
+  // keep the preview reachable: pressing the button before release
+  gid('pvGo').addEventListener('pointerdown',e=>{e.stopPropagation();});
+  gid('pvGo').addEventListener('click',e=>{
+    e.stopPropagation();
+    const i=Math.max(0,activeIdx>=0?activeIdx:curPv);
+    const span=Math.max(1,diveEnd()-diveStart());
+    const y=diveStart()+span*((START-(-i*S))/(START-END));
+    deactivate();
+    window.scrollTo({top:y,behavior:'smooth'});
+  });
+  gid('e-top').addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
+
+  gid('lang').addEventListener('click',()=>{
+    LANG=LANG==='en'?'zh':'en';
+    document.body.classList.toggle('zh',LANG==='zh');
+    gid('lang').textContent=T[LANG].lang;
+    gid('hsub').innerHTML=T[LANG].hold; gid('pvGo').textContent=T[LANG].go;
+    gid('e-line').textContent=T[LANG].end; gid('e-top').textContent=T[LANG].top;
+    fillPlate(); buildLabels();
+    if(curPv>=0) gid('pv-name').textContent=nameOf(DRINKS[curPv]);
+  });
+  fillPlate();
+})();
+</script>
+</body>
+</html>
